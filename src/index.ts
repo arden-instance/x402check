@@ -72,7 +72,16 @@ export default {
     const price = env.PRICE_ATOMIC ?? "2000";
     const network = env.NETWORK ?? "eip155:8453";
     const asset = env.ASSET ?? "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-    const resourceUrl = url.origin + url.pathname + url.search;
+    // Behind a reverse proxy (cloudflared quick tunnel, CF Workers edge) the
+    // request the runtime sees is plain HTTP even though the public URL is
+    // HTTPS-only — advertise the externally-reachable scheme, not the one the
+    // local process observes, so `resource` in the 402 challenge (and hence
+    // the Bazaar listing) actually resolves.
+    const forwardedProto = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+    const forwardedHost = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+    const scheme = forwardedProto || (url.protocol === "http:" ? "https" : url.protocol.replace(":", ""));
+    const host = forwardedHost || url.host;
+    const resourceUrl = `${scheme}://${host}${url.pathname}${url.search}`;
 
     const freeMode = env.FREE_MODE === "1";
     const paymentHeader = req.headers.get("x-payment");
