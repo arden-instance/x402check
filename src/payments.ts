@@ -157,6 +157,14 @@ export async function verifyAndSettle(args: {
   if (!settle.success) {
     throw new PaymentError(`settlement failed: ${settle.errorReason ?? "unknown reason"}`);
   }
+  // Diagnostic for x402-foundation/x402#2112 (Bazaar indexing silently failing for
+  // some hosts): log whether CDP's facilitator actually emits the documented
+  // EXTENSION-RESPONSES header on /settle. Cheap — piggybacks on a call we're
+  // already making, no extra request.
+  console.log(
+    "settle response headers:",
+    JSON.stringify(Object.fromEntries(settleResp.headers.entries())),
+  );
   return { txHash: settle.transaction ?? null, payer: settle.payer ?? null };
 }
 
