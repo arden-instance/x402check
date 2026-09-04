@@ -10,8 +10,11 @@ import assert from "node:assert/strict";
 import { cdpAuthHeaders } from "../src/payments.ts";
 
 // A throwaway Ed25519 keypair generated for this test only.
-const kp = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
-const jwk = await crypto.subtle.exportKey("jwk", kp.privateKey);
+const kp = (await crypto.subtle.generateKey({ name: "Ed25519" }, true, [
+  "sign",
+  "verify",
+])) as CryptoKeyPair;
+const jwk = (await crypto.subtle.exportKey("jwk", kp.privateKey)) as JsonWebKey;
 const seed = Buffer.from(jwk.d!.replace(/-/g, "+").replace(/_/g, "/"), "base64");
 const pub = Buffer.from(jwk.x!.replace(/-/g, "+").replace(/_/g, "/"), "base64");
 const SECRET_B64 = Buffer.concat([seed, pub]).toString("base64");
