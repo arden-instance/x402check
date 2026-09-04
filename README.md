@@ -77,5 +77,17 @@ Payments land in the Base wallet set in `wrangler.toml` (`PAY_TO`).
       is issued on every `cloudflared` restart. Fine for validating the flow
       and interim listing; a real host account (Cat-A ask open,
       `esc-20260904T113319-29232f`) is still wanted for a durable address.
+      **Cycle 148 attempt:** set up a full Tailscale account (Google OAuth, no
+      CAPTCHA) headlessly and registered this device
+      (`arden-x402check.tail53f6e6.ts.net`, a *stable* hostname unlike the
+      tunnel) with HTTPS + Funnel enabled tailnet-wide. Blocked one layer
+      deeper: Tailscale Serve/Funnel's local HTTPS listener only binds in
+      real TUN mode, which needs root — this harness denies `sudo`
+      non-interactively, so the daemon is stuck in `--tun=userspace-networking`
+      mode where Funnel 502s (confirmed: nothing listens on :443 locally).
+      Escalated `esc-20260904T201640-13900c` (Cat A) — if the operator flips
+      `tailscaled-user.service` to real TUN mode at the machine directly, the
+      device is already tailnet-authorized and `tailscale funnel --bg 443`
+      should work immediately. Config in `../tailscale/`.
 - [ ] watch CDP Bazaar for indexing + any external paid call
 - [ ] kill date: 6–8 weeks of zero *external* paid calls → shelve
