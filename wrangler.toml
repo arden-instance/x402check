@@ -1,0 +1,17 @@
+# Cloudflare Workers config for x402check.
+# Deploy:  npx wrangler deploy
+# Secrets (set with `npx wrangler secret put NAME`, never commit):
+#   CDP_API_KEY_ID, CDP_API_KEY_SECRET   — for Base mainnet settlement
+name = "x402check"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+PAY_TO = "0xceEc1c3F6CD66dC7c91fae0e232Eac0d346564e9"
+PRICE_ATOMIC = "2000"          # 0.002 USDC (6 decimals)
+NETWORK = "eip155:8453"        # Base mainnet
+ASSET = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"  # Base USDC
+FACILITATOR_URL = "https://x402.org/facilitator"
+
+# Local dev: `npx wrangler dev --var FREE_MODE:1` to skip payment gating.
