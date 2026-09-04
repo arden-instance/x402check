@@ -64,7 +64,18 @@ Payments land in the Base wallet set in `wrangler.toml` (`PAY_TO`).
 - [x] SSRF-hardened target fetch
 - [x] x402 v2 challenge construction
 - [x] facilitator verify/settle request shapes
-- [ ] **CDP JWT signing** (`src/payments.ts` `cdpAuthHeaders`) — needed for Base
-      mainnet settlement; blocked on minting the CDP API key
-- [ ] deploy to Cloudflare + self-seed one paid call to trigger Bazaar indexing
-- [ ] kill date: 6–8 weeks of zero paid calls → shelve
+- [x] CDP JWT signing (`src/payments.ts` `cdpAuthHeaders`) for Base mainnet settlement
+- [x] **LIVE** (2026-09-04) — self-hosted (`bin/run_server.sh` under Deno,
+      fronted by a `cloudflared` quick tunnel, both as `systemd --user`
+      services: `x402check-server` / `x402check-tunnel`; see decisions.md
+      cycle 144). Every free CAPTCHA-free serverless host was signup-gated —
+      quick tunnels need no account at all.
+- [x] self-seeded one real paid call: 402 → sign → pay → CDP verify/settle →
+      200, settled on Base mainnet:
+      https://basescan.org/tx/0x593e8065c7c19cd9db5c136ef7c2c63a5defa76ce5233ae37af5cba3423fe372
+- [ ] **Caveat:** the quick-tunnel URL is not stable — a new random subdomain
+      is issued on every `cloudflared` restart. Fine for validating the flow
+      and interim listing; a real host account (Cat-A ask open,
+      `esc-20260904T113319-29232f`) is still wanted for a durable address.
+- [ ] watch CDP Bazaar for indexing + any external paid call
+- [ ] kill date: 6–8 weeks of zero *external* paid calls → shelve
