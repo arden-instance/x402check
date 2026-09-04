@@ -28,6 +28,32 @@ interface EnvLike {
 
 const DEFAULT_FACILITATOR = "https://x402.org/facilitator";
 
+const RESOURCE_DESCRIPTION =
+  "Live x402 conformance pre-flight check: pass ?url=<x402 endpoint>, get a " +
+  "structured PASS/WARN/FAIL verdict on its 402 challenge before you trust it " +
+  "with a real payment.";
+
+// CDP's Bazaar only *lists* a resource that opts in via `outputSchema.input
+// .discoverable: true` on the accepts entry (settling a payment is not
+// enough by itself — verified empirically cycle 145: our first paid call
+// settled fine but never showed up in the discovery listing without this).
+const OUTPUT_SCHEMA = {
+  input: {
+    type: "http",
+    method: "GET",
+    discoverable: true,
+    queryParams: { url: { type: "string", description: "the x402 endpoint to check" } },
+  },
+  output: {
+    type: "object",
+    properties: {
+      verdict: { type: "string", enum: ["PASS", "WARN", "FAIL"] },
+      wire_version: { type: "number" },
+      checks: { type: "array" },
+    },
+  },
+};
+
 /** The `accepts[]` entry describing how to pay this endpoint. */
 function acceptsEntry(r: Requirements) {
   return {
@@ -38,6 +64,10 @@ function acceptsEntry(r: Requirements) {
     payTo: r.payTo,
     maxTimeoutSeconds: 120,
     extra: { name: "USD Coin", version: "2" },
+    resource: r.resourceUrl,
+    description: RESOURCE_DESCRIPTION,
+    mimeType: "application/json",
+    outputSchema: OUTPUT_SCHEMA,
   };
 }
 
@@ -47,10 +77,11 @@ export function buildChallenge(r: Requirements): { body: unknown; header: string
     error: "Payment required: this endpoint costs USDC per call",
     resource: {
       url: r.resourceUrl,
-      description: "x402 conformance pre-flight check",
+      description: RESOURCE_DESCRIPTION,
       mimeType: "application/json",
     },
     accepts: [acceptsEntry(r)],
+    extensions: { bazaar: { info: OUTPUT_SCHEMA } },
   };
   const header = Buffer.from(JSON.stringify(body)).toString("base64");
   return { body, header };
