@@ -81,7 +81,14 @@ export default {
     const forwardedHost = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
     const scheme = forwardedProto || (url.protocol === "http:" ? "https" : url.protocol.replace(":", ""));
     const host = forwardedHost || url.host;
-    const resourceUrl = `${scheme}://${host}${url.pathname}${url.search}`;
+    // Deliberately drop the query string: `?url=` varies on every call, and
+    // baking it into `resource` makes every call advertise a distinct
+    // resource identity. CDP's Bazaar indexes/aggregates by exact `resource`
+    // string, so a per-call-unique resource never accumulates quality/calls
+    // under one listing (verified empirically cycle 146 — every indexed
+    // competitor advertises a fixed path; the query contract belongs in
+    // outputSchema.input.queryParams, not in the resource URL itself).
+    const resourceUrl = `${scheme}://${host}${url.pathname}`;
 
     const freeMode = env.FREE_MODE === "1";
     const paymentHeader = req.headers.get("x-payment");
