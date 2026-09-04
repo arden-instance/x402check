@@ -77,8 +77,14 @@ export async function verifyAndSettle(args: {
 }): Promise<SettleResult> {
   const { paymentHeader, env, requirements } = args;
   const base = (env.FACILITATOR_URL ?? DEFAULT_FACILITATOR).replace(/\/$/, "");
-  const paymentPayload = decodePayment(paymentHeader);
+  const decoded = decodePayment(paymentHeader);
   const paymentRequirements = acceptsEntry(requirements);
+  // CDP's facilitator schema (x402V2PaymentPayload) additionally requires an
+  // `accepted` field on the payload itself, echoing which paymentRequirements
+  // entry the client is paying against — not part of the generic x402-spec
+  // payload shape the client signed, so we splice it in here rather than
+  // asking clients to include it.
+  const paymentPayload = { ...(decoded as Record<string, unknown>), accepted: paymentRequirements };
 
   const verifyUrl = `${base}/verify`;
   const verifyResp = await fetch(verifyUrl, {
@@ -90,7 +96,8 @@ export async function verifyAndSettle(args: {
     body: JSON.stringify({ x402Version: 2, paymentPayload, paymentRequirements }),
   });
   if (!verifyResp.ok) {
-    throw new PaymentError(`facilitator /verify HTTP ${verifyResp.status}`);
+    const bodyText = await verifyResp.text().catch(() => "");
+    throw new PaymentError(`facilitator /verify HTTP ${verifyResp.status}: ${bodyText.slice(0, 500)}`);
   }
   const verify = (await verifyResp.json()) as { isValid?: boolean; invalidReason?: string };
   if (!verify.isValid) {
@@ -107,7 +114,8 @@ export async function verifyAndSettle(args: {
     body: JSON.stringify({ x402Version: 2, paymentPayload, paymentRequirements }),
   });
   if (!settleResp.ok) {
-    throw new PaymentError(`facilitator /settle HTTP ${settleResp.status}`);
+    const bodyText = await settleResp.text().catch(() => "");
+    throw new PaymentError(`facilitator /settle HTTP ${settleResp.status}: ${bodyText.slice(0, 500)}`);
   }
   const settle = (await settleResp.json()) as {
     success?: boolean;

@@ -18,4 +18,5 @@ const env = new Proxy(
   { get: (_t, key) => Deno.env.get(String(key)) ?? undefined },
 ) as Env;
 
-Deno.serve((req: Request) => handler.fetch(req, env));
+const port = Number(Deno.env.get("PORT") ?? "8000");
+Deno.serve({ port }, (req: Request) => handler.fetch(req, env));

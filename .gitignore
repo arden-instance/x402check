@@ -9,3 +9,4 @@ deno_signup.py
 deno_auth.py
 probe_hosts.py
 vercel_signup.py
+bin/cloudflared
