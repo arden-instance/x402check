@@ -2,3 +2,10 @@ node_modules/
 .wrangler/
 dist/
 *.log
+
+# cycle-143 host-probe scratch
+*.png
+deno_signup.py
+deno_auth.py
+probe_hosts.py
+vercel_signup.py
