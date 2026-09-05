@@ -33,25 +33,65 @@ const RESOURCE_DESCRIPTION =
   "structured PASS/WARN/FAIL verdict on its 402 challenge before you trust it " +
   "with a real payment.";
 
-// CDP's Bazaar only *lists* a resource that opts in via `outputSchema.input
-// .discoverable: true` on the accepts entry (settling a payment is not
-// enough by itself — verified empirically cycle 145: our first paid call
-// settled fine but never showed up in the discovery listing without this).
-const OUTPUT_SCHEMA = {
+// Per the official spec (specs/extensions/bazaar.md, read directly from
+// x402-foundation/x402 on GitHub cycle 153, after finding the maintainer's
+// own comments on issue #2112 calling out exactly these two mistakes as
+// "patterns we've seen before"):
+//   1. `extensions.bazaar.info.input.discoverable` is NOT a real field —
+//      merely including the `bazaar` extension at all is what makes a
+//      resource discoverable. A stray `discoverable: true` key is silently
+//      ignored at best.
+//   2. `queryParams` under `info.input` must hold EXAMPLE VALUES (plain
+//      strings), not JSON-Schema-shaped descriptors — we had
+//      `{ url: { type: "string", ... } }` instead of `{ url: "<example>" }`.
+//   3. `extensions.bazaar.schema` (a JSON Schema Draft 2020-12 document that
+//      validates `info`) is REQUIRED — "Facilitators must validate `info`
+//      against `schema` before cataloging." We never sent one at all, which
+//      plausibly means every one of our settlements failed Bazaar validation
+//      silently, independent of the header/URL/resource-shape bugs fixed in
+//      cycles 145-146 and the still-open upstream EXTENSION-RESPONSES report
+//      (x402#2112, closed-not-fixed per maintainer "not reproducible" — this
+//      schema gap is a distinct, self-inflicted bug on our side).
+const BAZAAR_INFO = {
   input: {
     type: "http",
     method: "GET",
-    discoverable: true,
-    queryParams: { url: { type: "string", description: "the x402 endpoint to check" } },
+    queryParams: { url: "https://api.example.com/paid-resource" },
   },
   output: {
-    type: "object",
-    properties: {
-      verdict: { type: "string", enum: ["PASS", "WARN", "FAIL"] },
-      wire_version: { type: "number" },
-      checks: { type: "array" },
+    type: "json",
+    example: { verdict: "PASS", wire_version: 2, checks: [] },
+  },
+};
+
+const BAZAAR_SCHEMA = {
+  $schema: "https://json-schema.org/draft/2020-12/schema",
+  type: "object",
+  properties: {
+    input: {
+      type: "object",
+      properties: {
+        type: { type: "string", const: "http" },
+        method: { type: "string", enum: ["GET", "HEAD", "DELETE"] },
+        queryParams: {
+          type: "object",
+          properties: { url: { type: "string" } },
+          required: ["url"],
+        },
+      },
+      required: ["type", "method"],
+      additionalProperties: false,
+    },
+    output: {
+      type: "object",
+      properties: {
+        type: { type: "string" },
+        example: { type: "object" },
+      },
+      required: ["type"],
     },
   },
+  required: ["input"],
 };
 
 /** The `accepts[]` entry describing how to pay this endpoint. */
@@ -67,7 +107,6 @@ function acceptsEntry(r: Requirements) {
     resource: r.resourceUrl,
     description: RESOURCE_DESCRIPTION,
     mimeType: "application/json",
-    outputSchema: OUTPUT_SCHEMA,
   };
 }
 
@@ -79,9 +118,15 @@ export function buildChallenge(r: Requirements): { body: unknown; header: string
       url: r.resourceUrl,
       description: RESOURCE_DESCRIPTION,
       mimeType: "application/json",
+      // Service-level metadata (spec section "Service Metadata on
+      // `resource`") — optional, purely additive, enriches Bazaar search
+      // results with a name/tags. Within the spec's soft-drop ASCII/length
+      // limits (serviceName <=32 chars, each tag <=32 chars, <=5 tags).
+      serviceName: "x402check",
+      tags: ["x402", "conformance", "developer-tools"],
     },
     accepts: [acceptsEntry(r)],
-    extensions: { bazaar: { info: OUTPUT_SCHEMA } },
+    extensions: { bazaar: { info: BAZAAR_INFO, schema: BAZAAR_SCHEMA } },
   };
   const header = Buffer.from(JSON.stringify(body)).toString("base64");
   return { body, header };
