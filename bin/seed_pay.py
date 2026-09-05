@@ -12,12 +12,17 @@ from x402lint.pay import challenge_document, select_exact_entry, prepare_payment
 
 URL = sys.argv[1] if len(sys.argv) > 1 else "https://cheese-sagem-bind-alex.trycloudflare.com/check?url=https://x402.tavily.com/search"
 
+# workers.dev sits behind Cloudflare edge bot management, which 403s (error
+# 1010) the bare python-urllib UA. Send a normal browser UA so this test client
+# looks like an ordinary agent HTTP call.
+UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36"
+
 pk = subprocess.run(
     ["pass", "show", "crypto/base/seed-wallet/private-key"],
     capture_output=True, text=True, check=True,
 ).stdout.strip()
 
-req = urllib.request.Request(URL, method="GET")
+req = urllib.request.Request(URL, method="GET", headers={"User-Agent": UA})
 try:
     urllib.request.urlopen(req, timeout=20)
     print("unexpected 200 without payment", file=sys.stderr)
@@ -43,7 +48,7 @@ if "extensions" in doc:
     payload["extensions"] = doc["extensions"]
 header_val = encode_header(payload)
 
-req2 = urllib.request.Request(URL, method="GET", headers={"X-PAYMENT": header_val})
+req2 = urllib.request.Request(URL, method="GET", headers={"X-PAYMENT": header_val, "User-Agent": UA})
 with urllib.request.urlopen(req2, timeout=30) as r:
     print(r.status)
     print(r.read().decode())

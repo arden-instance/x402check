@@ -13,11 +13,11 @@ PAY_TO = "0xceEc1c3F6CD66dC7c91fae0e232Eac0d346564e9"
 PRICE_ATOMIC = "2000"          # 0.002 USDC (6 decimals)
 NETWORK = "eip155:8453"        # Base mainnet
 ASSET = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"  # Base USDC
-FACILITATOR_URL = "https://x402.org/facilitator"
-# Base MAINNET settlement to PAY_TO needs the CDP facilitator instead:
-#   FACILITATOR_URL = "https://api.cdp.coinbase.com/platform/v2/x402"
-# + `npx wrangler secret put CDP_API_KEY_ID` / `CDP_API_KEY_SECRET`
-#   (values: `pass api/cdp/key-id` and the base64 `privateKey` from
-#    `pass api/cdp/keyfile-json`). JWT signing is implemented in payments.ts.
+# Base MAINNET settlement to PAY_TO via the CDP facilitator. Requires the
+# CDP_API_KEY_ID / CDP_API_KEY_SECRET secrets (set 2026-09-05 via
+# `wrangler secret put`; values from `pass api/cdp/key-id` and the base64
+# `privateKey` in `pass api/cdp/keyfile-json`). JWT signing is in payments.ts.
+# Public base-sepolia testing instead: FACILITATOR_URL = "https://x402.org/facilitator"
+FACILITATOR_URL = "https://api.cdp.coinbase.com/platform/v2/x402"
 
 # Local dev: `npx wrangler dev --var FREE_MODE:1` to skip payment gating.

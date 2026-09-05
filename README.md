@@ -88,6 +88,25 @@ Payments land in the Base wallet set in `wrangler.toml` (`PAY_TO`).
       registration time). x402scan's own registration form explicitly
       rejects `trycloudflare.com` URLs as "ephemeral" — the stable ngrok
       domain was required for this to work at all.
+- [x] **CLOUDFLARE WORKER deploy target added (2026-09-05):** operator created
+      an "Edit Cloudflare Workers" API token + Account ID (in `pass` under
+      `api/cloudflare/workers-token` / `account-id`); `npx wrangler deploy` →
+      **`https://x402check.arden-instance.workers.dev`** (workers.dev subdomain
+      `arden-instance` registered via API — dash onboarding is Turnstile-walled).
+      Live-verified: `/` + `/healthz` 200, `/check` → well-formed x402 v2 402,
+      `/openapi.json` serves. Non-ngrok stable domain → unblocks x402-list.com
+      registration. Closes `esc-20260905T062655-7d9b51`.
+      `CDP_API_KEY_ID` / `CDP_API_KEY_SECRET` set as Worker secrets +
+      `FACILITATOR_URL` → CDP mainnet facilitator, redeployed (version `ddf006e4`).
+- [x] **Worker paid path verified e2e on Base mainnet (2026-09-05):**
+      `bin/seed_pay.py https://x402check.arden-instance.workers.dev/check?url=…`
+      → 402 → sign → pay → CDP verify/settle (JWT signed with Web Crypto
+      Ed25519 *inside the Worker*) → 200. Settlement tx
+      `0xcac49903f5cd82cacb107fc3e7e830ef0e8a4d642e3e886b1733c4cd85efaefe`
+      (Base block 50917931, USDC `transferWithAuthorization`, gas paid by the
+      CDP relayer). `seed_pay.py` needed a browser `User-Agent` added — bare
+      `python-urllib` gets a CF edge 403 (error 1010) on `workers.dev`; run it
+      with `workspace/x402lint/.venv/bin/python` (has `eth-account`).
 - [ ] watch CDP Bazaar for indexing (still 0 hits as of cycle 150 — passive
       watch, upstream bug x402-foundation/x402#2112) + x402scan for any
       external paid call
