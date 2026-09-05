@@ -17,6 +17,7 @@
 import { lintResponse } from "./protocol.ts";
 import { fetchUnpaid, UnsafeUrlError } from "./fetch.ts";
 import { buildChallenge, verifyAndSettle, PaymentError } from "./payments.ts";
+import { renderPage, wantsHtml, rateLimited } from "./web.ts";
 
 export interface Env {
   PAY_TO: string; // 0x… Base address that receives payment
@@ -37,6 +38,7 @@ const DESCRIPTION = {
     "trust it with a real payment.",
   usage: "GET /check?url=https://api.example.com/paid-resource",
   price: "~$0.002 USDC on Base per check",
+  free_web_ui: "Open this URL in a browser for a free, rate-limited checker.",
   source: "https://github.com/arden-instance/x402check",
 };
 
@@ -55,10 +57,37 @@ export default {
       return json({ error: "method not allowed" }, { status: 405 });
     }
     if (url.pathname === "/" || url.pathname === "") {
-      return json(DESCRIPTION);
+      // Browsers get the free interactive checker; tools/agents get the JSON
+      // service descriptor.
+      return wantsHtml(req) ? renderPage() : json(DESCRIPTION);
     }
     if (url.pathname === "/healthz") {
       return json({ ok: true });
+    }
+    if (url.pathname === "/check-free") {
+      // Free, rate-limited conformance check — powers the browser UI. Same
+      // lint logic as the paid /check, minus the payment (and minus the
+      // settlement receipt). SSRF protection is in fetchUnpaid, unchanged.
+      const ip = req.headers.get("cf-connecting-ip") ?? "unknown";
+      if (rateLimited(ip)) {
+        return json(
+          { error: "rate limited", detail: "Free checks are capped per minute. Use the paid GET /check for programmatic access." },
+          { status: 429 },
+        );
+      }
+      const target = url.searchParams.get("url");
+      if (!target) return json({ error: "missing ?url= parameter" }, { status: 400 });
+      let fetched;
+      try {
+        fetched = await fetchUnpaid(target);
+      } catch (e) {
+        if (e instanceof UnsafeUrlError) {
+          return json({ error: "target URL rejected", detail: e.message }, { status: 400 });
+        }
+        throw e;
+      }
+      const report = lintResponse(fetched.finalUrl, fetched.status, fetched.headers, fetched.bodyText);
+      return json({ ...report.toJSON(), checked_at: new Date().toISOString(), tier: "free" });
     }
     if (url.pathname === "/openapi.json") {
       const forwardedProto = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
@@ -76,7 +105,8 @@ export default {
           "x-guidance":
             "Call GET /check?url=<https x402 endpoint you're about to pay> to get a " +
             "structured PASS/WARN/FAIL conformance verdict on its 402 challenge before " +
-            "trusting it with a real payment. Pay ~$0.002 USDC on Base per check.",
+            "trusting it with a real payment. Pay ~$0.002 USDC on Base per check. " +
+            "Humans can use the free rate-limited browser UI at / instead.",
           contact: { email: "arden.instance@gmail.com" },
         },
         paths: {
@@ -114,6 +144,26 @@ export default {
                   },
                 },
                 "402": { description: "Payment Required" },
+              },
+            },
+          },
+          "/check-free": {
+            get: {
+              operationId: "checkX402EndpointFree",
+              summary: "Free rate-limited conformance check (powers the browser UI; no payment, no settlement receipt)",
+              tags: ["Check"],
+              parameters: [
+                {
+                  name: "url",
+                  in: "query",
+                  required: true,
+                  schema: { type: "string" },
+                  description: "The x402 endpoint to check (must be https)",
+                },
+              ],
+              responses: {
+                "200": { description: "Conformance verdict" },
+                "429": { description: "Rate limited — use the paid /check for programmatic access" },
               },
             },
           },
