@@ -355,8 +355,13 @@ export function lintResponse(
   status: number,
   headers: Record<string, string>,
   bodyText: string,
+  method: "GET" | "POST" = "GET",
 ): Report {
   const report = new Report(url);
+
+  if (method === "POST") {
+    report.add("method", INFO, "GET returned 404/405; checked with POST instead");
+  }
 
   if (status === 402) {
     report.add("status", PASS, "HTTP 402 Payment Required");

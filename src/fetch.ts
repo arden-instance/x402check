@@ -18,6 +18,7 @@ export interface FetchedResponse {
   headers: Record<string, string>;
   bodyText: string;
   finalUrl: string;
+  method: "GET" | "POST"; // which verb produced this response
 }
 
 export function assertSafeUrl(raw: string): URL {
@@ -44,15 +45,35 @@ export function assertSafeUrl(raw: string): URL {
 export async function fetchUnpaid(raw: string): Promise<FetchedResponse> {
   const u = assertSafeUrl(raw);
 
+  // Probe with GET first — the common case. Many real x402 resources are
+  // POST-only (search / inference APIs), where a GET hits no route and returns
+  // 404/405; in that case retry once with POST so we still see the 402
+  // challenge. A conformant x402 endpoint answers 402 *before* processing the
+  // request body, so sending `{}` has no side effect on a paid resource.
+  const got = await probe(u, "GET");
+  if (got.status === 404 || got.status === 405) {
+    const posted = await probe(u, "POST");
+    if (posted.status !== 404 && posted.status !== 405) return posted;
+  }
+  return got;
+}
+
+async function probe(u: URL, method: "GET" | "POST"): Promise<FetchedResponse> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  const headers: Record<string, string> = {
+    accept: "application/json, */*",
+    "user-agent": "x402check/0.1 (+conformance probe)",
+  };
+  if (method === "POST") headers["content-type"] = "application/json";
   let resp: Response;
   try {
     resp = await fetch(u.toString(), {
-      method: "GET",
+      method,
       redirect: "manual", // never chase redirects into private space
       signal: ctrl.signal,
-      headers: { accept: "application/json, */*", "user-agent": "x402check/0.1 (+conformance probe)" },
+      headers,
+      body: method === "POST" ? "{}" : undefined,
     });
   } catch (e) {
     clearTimeout(timer);
@@ -60,9 +81,9 @@ export async function fetchUnpaid(raw: string): Promise<FetchedResponse> {
   }
   clearTimeout(timer);
 
-  const headers: Record<string, string> = {};
+  const respHeaders: Record<string, string> = {};
   resp.headers.forEach((v, k) => {
-    headers[k] = v;
+    respHeaders[k] = v;
   });
 
   // Cap body read.
@@ -85,7 +106,7 @@ export async function fetchUnpaid(raw: string): Promise<FetchedResponse> {
     bodyText = new TextDecoder().decode(concat(chunks).slice(0, MAX_BODY_BYTES));
   }
 
-  return { status: resp.status, headers, bodyText, finalUrl: u.toString() };
+  return { status: resp.status, headers: respHeaders, bodyText, finalUrl: u.toString(), method };
 }
 
 function concat(chunks: Uint8Array[]): Uint8Array {

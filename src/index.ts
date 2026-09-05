@@ -86,7 +86,7 @@ export default {
         }
         throw e;
       }
-      const report = lintResponse(fetched.finalUrl, fetched.status, fetched.headers, fetched.bodyText);
+      const report = lintResponse(fetched.finalUrl, fetched.status, fetched.headers, fetched.bodyText, fetched.method);
       return json({ ...report.toJSON(), checked_at: new Date().toISOString(), tier: "free" });
     }
     if (url.pathname === "/openapi.json") {
@@ -248,7 +248,7 @@ export default {
       throw e;
     }
 
-    const report = lintResponse(fetched.finalUrl, fetched.status, fetched.headers, fetched.bodyText);
+    const report = lintResponse(fetched.finalUrl, fetched.status, fetched.headers, fetched.bodyText, fetched.method);
     const out = json({
       ...report.toJSON(),
       checked_at: new Date().toISOString(),
