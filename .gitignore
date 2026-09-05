@@ -10,3 +10,4 @@ deno_auth.py
 probe_hosts.py
 vercel_signup.py
 bin/cloudflared
+bin/ngrok

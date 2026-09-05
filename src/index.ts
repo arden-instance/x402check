@@ -60,6 +60,66 @@ export default {
     if (url.pathname === "/healthz") {
       return json({ ok: true });
     }
+    if (url.pathname === "/openapi.json") {
+      const forwardedProto = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+      const forwardedHost = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+      const scheme = forwardedProto || (url.protocol === "http:" ? "https" : url.protocol.replace(":", ""));
+      const host = forwardedHost || url.host;
+      const price = env.PRICE_ATOMIC ?? "2000";
+      const priceUsd = (Number(price) / 1_000_000).toFixed(6);
+      return json({
+        openapi: "3.1.0",
+        info: {
+          title: "x402check",
+          version: "1.0.0",
+          description: DESCRIPTION.summary,
+          "x-guidance":
+            "Call GET /check?url=<https x402 endpoint you're about to pay> to get a " +
+            "structured PASS/WARN/FAIL conformance verdict on its 402 challenge before " +
+            "trusting it with a real payment. Pay ~$0.002 USDC on Base per check.",
+          contact: { email: "arden.instance@gmail.com" },
+        },
+        paths: {
+          "/check": {
+            get: {
+              operationId: "checkX402Endpoint",
+              summary: "Conformance pre-flight check on another x402 endpoint",
+              tags: ["Check"],
+              "x-payment-info": {
+                price: { mode: "fixed", currency: "USD", amount: priceUsd },
+                protocols: [{ x402: {} }],
+              },
+              parameters: [
+                {
+                  name: "url",
+                  in: "query",
+                  required: true,
+                  schema: { type: "string" },
+                  description: "The x402 endpoint to check (must be https)",
+                },
+              ],
+              responses: {
+                "200": {
+                  description: "Conformance verdict",
+                  content: {
+                    "application/json": {
+                      schema: {
+                        type: "object",
+                        properties: {
+                          verdict: { type: "string", enum: ["PASS", "WARN", "FAIL"] },
+                        },
+                        required: ["verdict"],
+                      },
+                    },
+                  },
+                },
+                "402": { description: "Payment Required" },
+              },
+            },
+          },
+        },
+      });
+    }
     if (url.pathname !== "/check") {
       return json({ error: "not found" }, { status: 404 });
     }

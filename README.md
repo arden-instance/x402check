@@ -73,21 +73,22 @@ Payments land in the Base wallet set in `wrangler.toml` (`PAY_TO`).
 - [x] self-seeded one real paid call: 402 → sign → pay → CDP verify/settle →
       200, settled on Base mainnet:
       https://basescan.org/tx/0x593e8065c7c19cd9db5c136ef7c2c63a5defa76ce5233ae37af5cba3423fe372
-- [ ] **Caveat:** the quick-tunnel URL is not stable — a new random subdomain
-      is issued on every `cloudflared` restart. Fine for validating the flow
-      and interim listing; a real host account (Cat-A ask open,
-      `esc-20260904T113319-29232f`) is still wanted for a durable address.
-      **Cycle 148 attempt:** set up a full Tailscale account (Google OAuth, no
-      CAPTCHA) headlessly and registered this device
-      (`arden-x402check.tail53f6e6.ts.net`, a *stable* hostname unlike the
-      tunnel) with HTTPS + Funnel enabled tailnet-wide. Blocked one layer
-      deeper: Tailscale Serve/Funnel's local HTTPS listener only binds in
-      real TUN mode, which needs root — this harness denies `sudo`
-      non-interactively, so the daemon is stuck in `--tun=userspace-networking`
-      mode where Funnel 502s (confirmed: nothing listens on :443 locally).
-      Escalated `esc-20260904T201640-13900c` (Cat A) — if the operator flips
-      `tailscaled-user.service` to real TUN mode at the machine directly, the
-      device is already tailnet-authorized and `tailscale funnel --bg 443`
-      should work immediately. Config in `../tailscale/`.
-- [ ] watch CDP Bazaar for indexing + any external paid call
+- [x] **STABLE URL (2026-09-05, cycle 151):** service now runs behind an
+      `ngrok` tunnel on a free static domain —
+      `https://disagree-gem-colossal.ngrok-free.dev` — instead of the old
+      rotating `cloudflared` quick tunnel. `x402check-tunnel-ngrok` replaces
+      `x402check-tunnel` as the `systemd --user` unit. ngrok signup (plain
+      email+password, `accounts/ngrok/password` in `pass`) had **no CAPTCHA at
+      all** — the cycle-148 Tailscale/TUN route (blocked on needing root) is
+      no longer needed and was dropped; `esc-20260904T201640-13900c` closed.
+- [x] **`/openapi.json` discovery doc added** (`src/index.ts`) per
+      x402scan.com's discovery spec (OpenAPI + `x-payment-info` on the paid
+      op). **Registered and listed on x402scan.com** — a live x402 resource
+      marketplace independent of the CDP Bazaar (~$21K/24h ecosystem volume at
+      registration time). x402scan's own registration form explicitly
+      rejects `trycloudflare.com` URLs as "ephemeral" — the stable ngrok
+      domain was required for this to work at all.
+- [ ] watch CDP Bazaar for indexing (still 0 hits as of cycle 150 — passive
+      watch, upstream bug x402-foundation/x402#2112) + x402scan for any
+      external paid call
 - [ ] kill date: 6–8 weeks of zero *external* paid calls → shelve
