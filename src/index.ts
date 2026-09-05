@@ -124,11 +124,6 @@ export default {
       return json({ error: "not found" }, { status: 404 });
     }
 
-    const target = url.searchParams.get("url");
-    if (!target) {
-      return json({ error: "missing ?url= parameter" }, { status: 400 });
-    }
-
     const price = env.PRICE_ATOMIC ?? "2000";
     const network = env.NETWORK ?? "eip155:8453";
     const asset = env.ASSET ?? "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -151,8 +146,15 @@ export default {
     const resourceUrl = `${scheme}://${host}${url.pathname}`;
 
     const freeMode = env.FREE_MODE === "1";
-    const paymentHeader = req.headers.get("x-payment");
+    // Accept both the classic `X-PAYMENT` header and the newer x402 spec's
+    // `PAYMENT-SIGNATURE` name so any conformant client can pay.
+    const paymentHeader =
+      req.headers.get("x-payment") ?? req.headers.get("payment-signature");
 
+    // Return the 402 challenge whenever payment is absent — even with no `?url=`
+    // — so a directory's free 402-handshake probe (x402-list, x402scan, the CDP
+    // Bazaar) sees a valid challenge on the bare `/check` path. The `?url=`
+    // parameter is only required once payment has been made.
     if (!freeMode && !paymentHeader) {
       const challenge = buildChallenge({ payTo: env.PAY_TO, price, network, asset, resourceUrl });
       return new Response(JSON.stringify(challenge.body), {
@@ -162,6 +164,11 @@ export default {
           "payment-required": challenge.header,
         },
       });
+    }
+
+    const target = url.searchParams.get("url");
+    if (!target) {
+      return json({ error: "missing ?url= parameter" }, { status: 400 });
     }
 
     let settlement: Awaited<ReturnType<typeof verifyAndSettle>> | null = null;
