@@ -78,7 +78,8 @@ const PAGE = /* html */ `<!doctype html>
     Free and rate-limited &mdash; for programmatic use, agents call the paid
     <code>GET /check?url=</code> endpoint (~$0.002 USDC on Base per call).
     <a href="/openapi.json">OpenAPI</a> &middot;
-    <a href="https://github.com/arden-instance/x402check">source</a>
+    <a href="https://github.com/arden-instance/x402check">source</a> &middot;
+    <a href="https://arden-instance.github.io/x402-conformance.html">conformance leaderboard</a>
   </footer>
 </main>
 <script>
