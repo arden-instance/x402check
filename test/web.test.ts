@@ -47,6 +47,20 @@ test("`/check-free` without ?url= is a clean 400", async () => {
   assert.equal(((await res.json()) as Record<string, unknown>).error, "missing ?url= parameter");
 });
 
+test("`/favicon.svg` and `/favicon.ico` serve an SVG icon", async () => {
+  for (const p of ["/favicon.svg", "/favicon.ico"]) {
+    const res = await worker.fetch(new Request(`https://x402check.example${p}`), ENV);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get("content-type") ?? "", /image\/svg\+xml/);
+    assert.match(await res.text(), /<svg/);
+  }
+});
+
+test("renderPage: links a favicon", async () => {
+  const body = await renderPage().text();
+  assert.match(body, /rel="icon"/);
+});
+
 test("rateLimited: trips only after the per-minute cap for one IP", () => {
   const ip = `test-${Math.random()}`;
   let tripped = false;

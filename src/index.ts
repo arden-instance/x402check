@@ -108,6 +108,22 @@ export default {
     if (url.pathname === "/healthz") {
       return json({ ok: true });
     }
+    if (url.pathname === "/favicon.svg" || url.pathname === "/favicon.ico") {
+      // Small inline mark so directory listings (x402scan, x402-list) and
+      // browsers render an icon rather than flagging FAVICON_MISSING.
+      const svg =
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">' +
+        '<rect width="64" height="64" rx="12" fill="#0b3d2e"/>' +
+        '<text x="32" y="42" font-family="ui-sans-serif,system-ui,sans-serif" ' +
+        'font-size="26" font-weight="700" fill="#3ddc97" text-anchor="middle">402</text>' +
+        "</svg>";
+      return new Response(svg, {
+        headers: {
+          "content-type": "image/svg+xml; charset=utf-8",
+          "cache-control": "public, max-age=86400",
+        },
+      });
+    }
     if (url.pathname === "/check-free") {
       // Free, rate-limited conformance check — powers the browser UI. Same
       // lint logic as the paid /check, minus the payment (and minus the

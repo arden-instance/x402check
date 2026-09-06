@@ -16,6 +16,7 @@ const PAGE = /* html */ `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>x402check — x402 conformance pre-flight</title>
 <meta name="description" content="Check any x402 endpoint's 402 challenge for spec conformance before you trust it with a real payment. Free in the browser; paid API for agents.">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <style>
   :root { color-scheme: light dark; }
   * { box-sizing: border-box; }
