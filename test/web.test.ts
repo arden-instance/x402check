@@ -36,7 +36,7 @@ test("`/` serves HTML to a browser, JSON to a tool", async () => {
 
   const jsonRes = await worker.fetch(new Request("https://x402check.example/"), ENV);
   assert.match(jsonRes.headers.get("content-type") ?? "", /application\/json/);
-  const desc = await jsonRes.json();
+  const desc = (await jsonRes.json()) as Record<string, unknown>;
   assert.equal(desc.service, "x402check");
   assert.ok(desc.free_web_ui);
 });
@@ -44,7 +44,7 @@ test("`/` serves HTML to a browser, JSON to a tool", async () => {
 test("`/check-free` without ?url= is a clean 400", async () => {
   const res = await worker.fetch(new Request("https://x402check.example/check-free"), ENV);
   assert.equal(res.status, 400);
-  assert.equal((await res.json()).error, "missing ?url= parameter");
+  assert.equal(((await res.json()) as Record<string, unknown>).error, "missing ?url= parameter");
 });
 
 test("rateLimited: trips only after the per-minute cap for one IP", () => {

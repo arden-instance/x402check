@@ -18,7 +18,7 @@ import { lintResponse } from "./protocol.ts";
 import { fetchUnpaid, UnsafeUrlError } from "./fetch.ts";
 import { buildChallenge, verifyAndSettle, PaymentError, type ResourceDescriptor } from "./payments.ts";
 import { renderPage, wantsHtml, rateLimited } from "./web.ts";
-import { handleBase, BaseQueryError } from "./base.ts";
+import { handleBase, BaseQueryError, baseOpenApiPaths } from "./base.ts";
 
 export interface Env {
   PAY_TO: string; // 0x… Base address that receives payment
@@ -211,6 +211,7 @@ export default {
               },
             },
           },
+          ...baseOpenApiPaths(priceUsd),
         },
       });
     }

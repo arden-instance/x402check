@@ -5,7 +5,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { handleBase, BaseQueryError, decodeAbiString } from "../src/base.ts";
+import { handleBase, BaseQueryError, decodeAbiString, baseOpenApiPaths } from "../src/base.ts";
 
 const realFetch = globalThis.fetch;
 const env = { BASE_RPC_URL: "https://rpc.test" };
@@ -165,4 +165,33 @@ test("upstream RPC error surfaces as BaseQueryError", async () => {
 test("decodeAbiString handles bytes32-packed strings", () => {
   const packed = "0x" + Buffer.from("MKR").toString("hex").padEnd(64, "0");
   assert.equal(decodeAbiString(packed), "MKR");
+});
+
+test("baseOpenApiPaths: one paid path per /base route, priced, x402", () => {
+  const paths = baseOpenApiPaths("0.002000") as Record<string, any>;
+  assert.deepEqual(
+    Object.keys(paths).sort(),
+    ["/base/balance", "/base/block", "/base/erc20", "/base/gas", "/base/tx"],
+  );
+  for (const [name, spec] of Object.entries(paths)) {
+    assert.ok(spec.get, `${name} has a GET`);
+    assert.equal(spec.get["x-payment-info"].price.amount, "0.002000");
+    assert.deepEqual(spec.get["x-payment-info"].protocols, [{ x402: {} }]);
+    assert.ok(spec.get.responses["402"], `${name} documents 402`);
+  }
+  assert.equal(paths["/base/tx"].get.parameters[0].name, "hash");
+  assert.equal(paths["/base/tx"].get.parameters[0].required, true);
+  assert.equal(paths["/base/gas"].get.parameters.length, 0);
+});
+
+test("/openapi.json advertises the /base routes", async () => {
+  const worker = (await import("../src/index.ts")).default;
+  const res = await worker.fetch(
+    new Request("https://x402check.example/openapi.json"),
+    { PAY_TO: "0x000000000000000000000000000000000000dEaD" } as any,
+  );
+  assert.equal(res.status, 200);
+  const doc = (await res.json()) as any;
+  assert.ok(doc.paths["/base/block"], "/base/block listed");
+  assert.ok(doc.paths["/base/gas"].get["x-payment-info"], "/base/gas priced");
 });

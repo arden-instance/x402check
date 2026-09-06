@@ -229,6 +229,54 @@ export async function handleBase(path: string, params: URLSearchParams, env: Bas
   throw new BaseQueryError(`unknown /base route '${route}'. Valid: block, tx, balance, erc20, gas`);
 }
 
+/**
+ * OpenAPI `paths` fragment for the paid /base/* routes, merged into /openapi.json.
+ * `priceUsd` is the per-call price as a decimal USD string.
+ */
+export function baseOpenApiPaths(priceUsd: string): Record<string, unknown> {
+  const q = (name: string, description: string, required = false) => ({
+    name,
+    in: "query",
+    required,
+    schema: { type: "string" },
+    description,
+  });
+  const paid = (operationId: string, summary: string, parameters: unknown[]) => ({
+    get: {
+      operationId,
+      summary,
+      tags: ["Base"],
+      "x-payment-info": {
+        price: { mode: "fixed", currency: "USD", amount: priceUsd },
+        protocols: [{ x402: {} }],
+      },
+      parameters,
+      responses: {
+        "200": { description: "Base mainnet data (application/json)" },
+        "400": { description: "Invalid query parameter" },
+        "402": { description: "Payment Required" },
+        "502": { description: "All upstream Base RPC nodes failed" },
+      },
+    },
+  });
+  return {
+    "/base/block": paid("baseGetBlock", "Base mainnet block summary by number or tag", [
+      q("number", "Block number (decimal or 0x-hex) or a named tag (latest/safe/finalized/…). Default: latest"),
+    ]),
+    "/base/tx": paid("baseGetTx", "Base mainnet transaction + receipt summary", [
+      q("hash", "0x-prefixed 32-byte transaction hash", true),
+    ]),
+    "/base/balance": paid("baseGetBalance", "Native ETH + Base USDC balance for an address", [
+      q("address", "0x-prefixed 20-byte address", true),
+    ]),
+    "/base/erc20": paid("baseGetErc20", "ERC-20 symbol/decimals/balanceOf on Base mainnet", [
+      q("token", "0x-prefixed ERC-20 contract address", true),
+      q("holder", "0x-prefixed holder address", true),
+    ]),
+    "/base/gas": paid("baseGetGas", "Current Base mainnet gas price + latest base fee", []),
+  };
+}
+
 /** Decode a single ABI-encoded string return value (offset, length, bytes). */
 export function decodeAbiString(hex: unknown): string {
   if (typeof hex !== "string" || !hex.startsWith("0x")) return "";
