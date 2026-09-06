@@ -16,8 +16,9 @@
 
 import { lintResponse } from "./protocol.ts";
 import { fetchUnpaid, UnsafeUrlError } from "./fetch.ts";
-import { buildChallenge, verifyAndSettle, PaymentError } from "./payments.ts";
+import { buildChallenge, verifyAndSettle, PaymentError, type ResourceDescriptor } from "./payments.ts";
 import { renderPage, wantsHtml, rateLimited } from "./web.ts";
+import { handleBase, BaseQueryError } from "./base.ts";
 
 export interface Env {
   PAY_TO: string; // 0x… Base address that receives payment
@@ -28,7 +29,44 @@ export interface Env {
   CDP_API_KEY_ID?: string;
   CDP_API_KEY_SECRET?: string;
   FREE_MODE?: string; // "1" → skip payment (local dev only)
+  BASE_RPC_URL?: string; // Base mainnet JSON-RPC for /base/*; default mainnet.base.org
 }
+
+// Per-route Bazaar/challenge metadata for the paid /base/* Base-chain data API,
+// so it lists as its own resource (distinct from the /check conformance service).
+const BASE_DESCRIPTOR: ResourceDescriptor = {
+  description:
+    "Read-only Base mainnet data: GET /base/block, /base/tx?hash=, " +
+    "/base/balance?address=, /base/erc20?token=&holder=, /base/gas. " +
+    "Small JSON payloads over a Base node; pay ~$0.002 USDC on Base per call.",
+  serviceName: "x402check-base",
+  tags: ["x402", "base", "blockchain", "rpc", "data"],
+  bazaarInfo: {
+    input: {
+      type: "http",
+      method: "GET",
+      queryParams: { hash: "0x-tx-hash", address: "0x-address" },
+    },
+    output: { type: "json", example: { network: "base-mainnet", retrieved_at: "…" } },
+  },
+  bazaarSchema: {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    type: "object",
+    properties: {
+      input: {
+        type: "object",
+        properties: {
+          type: { type: "string", const: "http" },
+          method: { type: "string", enum: ["GET", "HEAD"] },
+          queryParams: { type: "object" },
+        },
+        required: ["type", "method"],
+      },
+      output: { type: "object", properties: { type: { type: "string" }, example: { type: "object" } }, required: ["type"] },
+    },
+    required: ["input"],
+  },
+};
 
 const DESCRIPTION = {
   service: "x402check",
@@ -39,6 +77,12 @@ const DESCRIPTION = {
   usage: "GET /check?url=https://api.example.com/paid-resource",
   price: "~$0.002 USDC on Base per check",
   free_web_ui: "Open this URL in a browser for a free, rate-limited checker.",
+  also: {
+    base_data_api:
+      "GET /base/block | /base/tx?hash= | /base/balance?address= | " +
+      "/base/erc20?token=&holder= | /base/gas — paid read-only Base mainnet data, " +
+      "~$0.002 USDC on Base per call.",
+  },
   source: "https://github.com/arden-instance/x402check",
 };
 
@@ -170,6 +214,59 @@ export default {
         },
       });
     }
+    // Paid Base-chain data API. Same payment gate as /check, own resource
+    // identity (BASE_DESCRIPTOR). A bare /base or /base/ with no payment still
+    // returns a valid 402 so directory probes see a challenge.
+    if (url.pathname === "/base" || url.pathname.startsWith("/base/")) {
+      const price = env.PRICE_ATOMIC ?? "2000";
+      const network = env.NETWORK ?? "eip155:8453";
+      const asset = env.ASSET ?? "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+      const forwardedProto = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+      const forwardedHost = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+      const scheme = forwardedProto || (url.protocol === "http:" ? "https" : url.protocol.replace(":", ""));
+      const host = forwardedHost || url.host;
+      const resourceUrl = `${scheme}://${host}${url.pathname}`;
+      const reqs = { payTo: env.PAY_TO, price, network, asset, resourceUrl, descriptor: BASE_DESCRIPTOR };
+
+      const freeMode = env.FREE_MODE === "1";
+      const paymentHeader = req.headers.get("x-payment") ?? req.headers.get("payment-signature");
+
+      if (!freeMode && !paymentHeader) {
+        const challenge = buildChallenge(reqs);
+        return new Response(JSON.stringify(challenge.body), {
+          status: 402,
+          headers: {
+            "content-type": "application/json; charset=utf-8",
+            "payment-required": challenge.header,
+          },
+        });
+      }
+
+      let settlement: Awaited<ReturnType<typeof verifyAndSettle>> | null = null;
+      if (!freeMode) {
+        try {
+          settlement = await verifyAndSettle({ paymentHeader: paymentHeader!, env, requirements: reqs });
+        } catch (e) {
+          if (e instanceof PaymentError) {
+            return json({ error: "payment verification failed", detail: e.message }, { status: 402 });
+          }
+          throw e;
+        }
+      }
+
+      let out: Response;
+      try {
+        out = await handleBase(url.pathname, url.searchParams, env);
+      } catch (e) {
+        if (e instanceof BaseQueryError) {
+          return json({ error: "bad base query", detail: e.message }, { status: 400 });
+        }
+        throw e;
+      }
+      if (settlement?.txHash) out.headers.set("x-payment-response", settlement.txHash);
+      return out;
+    }
+
     if (url.pathname !== "/check") {
       return json({ error: "not found" }, { status: 404 });
     }

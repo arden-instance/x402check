@@ -15,6 +15,19 @@ export interface Requirements {
   network: string; // CAIP-2
   asset: string; // token contract
   resourceUrl: string;
+  // Optional per-route metadata override. When absent the challenge describes
+  // the default /check conformance service (back-compat). A second paid route
+  // (e.g. /base/*) passes its own description/serviceName/tags/bazaar info so
+  // it lists as a distinct resource.
+  descriptor?: ResourceDescriptor;
+}
+
+export interface ResourceDescriptor {
+  description: string;
+  serviceName: string;
+  tags: string[];
+  bazaarInfo: unknown;
+  bazaarSchema: unknown;
 }
 
 interface EnvLike {
@@ -105,7 +118,7 @@ function acceptsEntry(r: Requirements) {
     maxTimeoutSeconds: 120,
     extra: { name: "USD Coin", version: "2" },
     resource: r.resourceUrl,
-    description: RESOURCE_DESCRIPTION,
+    description: r.descriptor?.description ?? RESOURCE_DESCRIPTION,
     mimeType: "application/json",
   };
 }
@@ -116,17 +129,22 @@ export function buildChallenge(r: Requirements): { body: unknown; header: string
     error: "Payment required: this endpoint costs USDC per call",
     resource: {
       url: r.resourceUrl,
-      description: RESOURCE_DESCRIPTION,
+      description: r.descriptor?.description ?? RESOURCE_DESCRIPTION,
       mimeType: "application/json",
       // Service-level metadata (spec section "Service Metadata on
       // `resource`") — optional, purely additive, enriches Bazaar search
       // results with a name/tags. Within the spec's soft-drop ASCII/length
       // limits (serviceName <=32 chars, each tag <=32 chars, <=5 tags).
-      serviceName: "x402check",
-      tags: ["x402", "conformance", "developer-tools"],
+      serviceName: r.descriptor?.serviceName ?? "x402check",
+      tags: r.descriptor?.tags ?? ["x402", "conformance", "developer-tools"],
     },
     accepts: [acceptsEntry(r)],
-    extensions: { bazaar: { info: BAZAAR_INFO, schema: BAZAAR_SCHEMA } },
+    extensions: {
+      bazaar: {
+        info: r.descriptor?.bazaarInfo ?? BAZAAR_INFO,
+        schema: r.descriptor?.bazaarSchema ?? BAZAAR_SCHEMA,
+      },
+    },
   };
   const header = Buffer.from(JSON.stringify(body)).toString("base64");
   return { body, header };
